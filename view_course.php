@@ -16,49 +16,45 @@ $db = "collegeproject";
 $data = mysqli_connect($host, $user, $password, $db);
 
 // Check if the 'course_id' parameter is set in the GET request and sanitize it
-if (isset($_GET['Course_id'])) { // Corrected variable name
+if (isset($_GET['Course_id'])) {
     $c_id = mysqli_real_escape_string($data, $_GET['Course_id']); // Corrected variable name
 
-    // Corrected SQL statement to use prepared statement to prevent SQL injection
+    // Prepare and execute the delete statement
     $sql2 = "DELETE FROM courses WHERE id=?";
     $stmt = mysqli_prepare($data, $sql2);
 
     if ($stmt) {
-        // Bind the parameter and execute the statement
-        mysqli_stmt_bind_param($stmt, "i", $c_id); // Corrected variable name
+        mysqli_stmt_bind_param($stmt, "i", $c_id);
         mysqli_stmt_execute($stmt);
 
         // Check if the deletion was successful
         if (mysqli_stmt_affected_rows($stmt) > 0) {
-            header('location: view_course.php');
-            exit();
+            $_SESSION['message'] = 'Delete course is successful';
         } else {
-            // Handle the case where deletion failed, if necessary
-            echo "Error deleting the course: " . mysqli_error($data);
+            $_SESSION['message'] = 'Failed to delete course';
         }
 
         mysqli_stmt_close($stmt);
+        
+        // Redirect back to view_course.php after deletion
+        header('location: view_course.php');
+        exit();
     } else {
-        // Handle the case where the prepared statement couldn't be created
-        echo "Error creating prepared statement: " . mysqli_error($data);
+        $_SESSION['message'] = 'Error deleting course';
     }
 }
 
-// Rest of your code for displaying courses, if needed
+// Fetch all courses from the database
 $sql = "SELECT * FROM courses";
 $result = mysqli_query($data, $sql);
 ?>
-
-<!-- Place the HTML code for displaying courses here -->
 
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>Admin Dashboard</title>
-    <?php
-    include 'admin_css.php';
-    ?>
+    <?php include 'admin_css.php'; ?>
     <style type="text/css">
         .table_th {
             padding: 20px;
@@ -71,16 +67,14 @@ $result = mysqli_query($data, $sql);
     </style>
 </head>
 <body>
-<?php
-include 'admin_sidebar.php';
-?>
+<?php include 'admin_sidebar.php'; ?>
 <div class="content">
     <center>
         <h1>View All Course Data</h1>
         <table border="1px">
             <tr>
                 <th class="table_th">Course Name</th>
-                <th class="table_th">About Course</th>
+                <th class="table_th">Description</th>
                 <th class="table_th">Course id</th>
                 <th class="table_th">Delete</th>
                 <th class="table_th">Update</th>
@@ -89,21 +83,15 @@ include 'admin_sidebar.php';
             while ($info = $result->fetch_assoc()) {
                 ?>
                 <tr>
-                    <td class="table_td"><?php echo "{$info['name']}" ?></td>
-                    <td class="table_td"><?php echo "{$info['description']}" ?></td>
-                    <td class="table_td"><?php echo "{$info['courseid']}" ?></td>
+                    <td class="table_td"><?php echo $info['name'] ?></td>
+                    <td class="table_td"><?php echo $info['description'] ?></td>
+                    <td class="table_td"><?php echo $info['courseid'] ?></td>
                     <td class="table_td">
-                        <?php
-                        echo "
-                        <a onClick=\"return confirm('Are you sure to delete?');\" class ='btn btn-danger' 
-                        href='delete_course.php?Course_id={$info['id']}'>Delete</a>";
-                        ?>
+                        <a onClick="return confirm('Are you sure to delete?');" class="btn btn-danger" 
+                        href="delete_course.php?Course_id=<?php echo $info['id'] ?>">Delete</a>
                     </td>
                     <td class="table_td">
-                        <?php
-                        echo "
-                        <a href='update_course.php?Course_id={$info['id']}' class='btn btn-primary'>Update</a>";
-                        ?>
+                        <a href="update_course.php?Course_id=<?php echo $info['id'] ?>" class="btn btn-primary">Update</a>
                     </td>
                 </tr>
                 <?php
