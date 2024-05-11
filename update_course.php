@@ -1,11 +1,13 @@
 <?php
-// Always start the session first
 session_start();
+error_reporting(0);
 
-// Check if the user is not logged in or is a student, redirect them to the login page
-if (!isset($_SESSION['username']) || $_SESSION['usertype'] == 'student') {
-    header("location: login.php");
-    exit();
+if (!isset($_SESSION['username'])) {
+    header("Location: login.php");
+    exit(); // Stop further execution
+} elseif ($_SESSION['usertype'] == 'student') {
+    header("Location: login.php");
+    exit(); // Stop further execution
 }
 
 $host = "localhost";
@@ -15,38 +17,46 @@ $db = "collegeproject";
 
 $data = mysqli_connect($host, $user, $password, $db);
 
-// Check if the 'course_id' parameter is set in the GET request and sanitize it
+if (!$data) {
+    die("Connection failed: " . mysqli_connect_error());
+}
+
 if (isset($_GET['Course_id'])) {
-    $c_id = mysqli_real_escape_string($data, $_GET['Course_id']); // Corrected variable name
+    $t_id = mysqli_real_escape_string($data, $_GET['Course_id']); // Sanitize input
 
-    // Prepare and execute the delete statement
-    $sql2 = "DELETE FROM courses WHERE id=?";
-    $stmt = mysqli_prepare($data, $sql2);
+    // Use prepared statements to prevent SQL injection
+    $sql = "SELECT * FROM courses WHERE id=?";
+    $stmt = mysqli_prepare($data, $sql);
+    mysqli_stmt_bind_param($stmt, "i", $t_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
 
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, "i", $c_id);
-        mysqli_stmt_execute($stmt);
-
-        // Check if the deletion was successful
-        if (mysqli_stmt_affected_rows($stmt) > 0) {
-            $_SESSION['message'] = 'Delete course is successful';
-        } else {
-            $_SESSION['message'] = 'Failed to delete course';
-        }
-
-        mysqli_stmt_close($stmt);
-        
-        // Redirect back to view_course.php after deletion
-        header('location: view_course.php');
-        exit();
+    if ($result && mysqli_num_rows($result) > 0) {
+        $info = mysqli_fetch_assoc($result);
     } else {
-        $_SESSION['message'] = 'Error deleting course';
+        die("Error: Course not found");
     }
 }
 
-// Fetch all courses from the database
-$sql = "SELECT * FROM courses";
-$result = mysqli_query($data, $sql);
+if (isset($_POST['update_Course'])) { // Corrected the form field name
+    $id = mysqli_real_escape_string($data, $_POST['id']); // Sanitize input
+    $t_name = $_POST['name']; // No need to sanitize as we'll use prepared statement
+    $t_des = $_POST['description']; // No need to sanitize as we'll use prepared statement
+
+    // Use prepared statements to prevent SQL injection
+    $sql2 = "UPDATE courses SET name=?, description=? WHERE id=?";
+    $stmt = mysqli_prepare($data, $sql2);
+    mysqli_stmt_bind_param($stmt, "ssi", $t_name, $t_des, $id);
+
+    if (mysqli_stmt_execute($stmt)) {
+        header('Location: admin_view_course.php');
+        exit(); // Stop further execution
+    } else {
+        echo "Error updating Course: " . mysqli_error($data);
+    }
+}
+
+mysqli_close($data); // Close the database connection
 ?>
 
 <!DOCTYPE html>
@@ -54,51 +64,46 @@ $result = mysqli_query($data, $sql);
 <head>
     <meta charset="utf-8">
     <title>Admin Dashboard</title>
+    
     <?php include 'admin_css.php'; ?>
+    
     <style type="text/css">
-        .table_th {
-            padding: 20px;
-            font-size: 20px;
+        label {
+            display: inline-block;
+            width: 150px;
+            text-align: right;
+            padding-top: 10px;
+            padding-bottom: 10px;
         }
-        .table_td {
-            padding: 20px;
+
+        .form_deg {
             background-color: skyblue;
+            width: 600px;
+            padding-top: 70px;
+            padding-bottom: 70px;
         }
     </style>
 </head>
 <body>
-<?php include 'admin_sidebar.php'; ?>
-<div class="content">
-    <center>
-        <h1>View All Course Data</h1>
-        <table border="1px">
-            <tr>
-                <th class="table_th">Course Name</th>
-                <th class="table_th">Description</th>
-                <th class="table_th">Course id</th>
-                <th class="table_th">Delete</th>
-                <th class="table_th">Update</th>
-            </tr>
-            <?php
-            while ($info = $result->fetch_assoc()) {
-                ?>
-                <tr>
-                    <td class="table_td"><?php echo $info['name'] ?></td>
-                    <td class="table_td"><?php echo $info['description'] ?></td>
-                    <td class="table_td"><?php echo $info['courseid'] ?></td>
-                    <td class="table_td">
-                        <a onClick="return confirm('Are you sure to delete?');" class="btn btn-danger" 
-                        href="delete_course.php?Course_id=<?php echo $info['id'] ?>">Delete</a>
-                    </td>
-                    <td class="table_td">
-                        <a href="update_course.php?Course_id=<?php echo $info['id'] ?>" class="btn btn-primary">Update</a>
-                    </td>
-                </tr>
-                <?php
-            }
-            ?>
-        </table>
-    </center>
-</div>
+    <?php include 'admin_sidebar.php'; ?>
+    <div class="content">
+        <center>
+            <h1>Update Course Data</h1><br><br>
+            <form class="form_deg" action="#" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="id" value="<?php echo $info['id']; ?>">
+                <div>
+                    <label>Course Name</label>
+                    <input type="text" name="name" value="<?php echo $info['name']; ?>">
+                </div>
+                <div>
+                    <label>About Course</label>
+                    <textarea name="description" rows="4"><?php echo $info['description']; ?></textarea>
+                </div>
+                <div>
+                    <input class="btn btn-success" type="submit" name="update_Course" value="Update Course">
+                </div>
+            </form>
+        </center>
+    </div>
 </body>
 </html>
