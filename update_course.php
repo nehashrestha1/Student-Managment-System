@@ -1,13 +1,11 @@
 <?php
+// Always start the session first
 session_start();
-error_reporting(0);
 
-if (!isset($_SESSION['username'])) {
-    header("Location: login.php");
-    exit(); // Add exit to stop further execution
-} elseif ($_SESSION['usertype'] == 'student') {
-    header("Location: login.php");
-    exit(); // Add exit to stop further execution
+// Check if the user is not logged in or is a student, redirect them to the login page
+if (!isset($_SESSION['username']) || $_SESSION['usertype'] == 'student') {
+    header("location: login.php");
+    exit();
 }
 
 $host = "localhost";
@@ -17,41 +15,38 @@ $db = "collegeproject";
 
 $data = mysqli_connect($host, $user, $password, $db);
 
-if (!$data) {
-    die("Connection failed: " . mysqli_connect_error());
-}
-
+// Check if the 'course_id' parameter is set in the GET request and sanitize it
 if (isset($_GET['Course_id'])) {
-    $t_id = mysqli_real_escape_string($data, $_GET['Course_id']); // Sanitize input
-    $sql = "SELECT * FROM Courses WHERE id='$t_id'";
-    $result = mysqli_query($data, $sql);
+    $c_id = mysqli_real_escape_string($data, $_GET['Course_id']); // Corrected variable name
 
-    if ($result) {
-        $info = mysqli_fetch_assoc($result);
-    } else {
-        die("Error: " . mysqli_error($data));
-    }
-}
-
-if (isset($_POST['update_Course'])) { // Corrected the form field name
-    $id = mysqli_real_escape_string($data, $_POST['id']); // Sanitize input
-    $t_name = mysqli_real_escape_string($data, $_POST['name']); // Sanitize input
-    $t_des = mysqli_real_escape_string($data, $_POST['description']); // Sanitize input
-
-    // Use prepared statements to prevent SQL injection
-    $sql2 = "UPDATE Course SET name=?, description=? WHERE id=?";
+    // Prepare and execute the delete statement
+    $sql2 = "DELETE FROM courses WHERE id=?";
     $stmt = mysqli_prepare($data, $sql2);
-    mysqli_stmt_bind_param($stmt, "ssi", $t_name, $t_des, $id);
-    
-    if (mysqli_stmt_execute($stmt)) {
-        header('Location: admin_view_Course.php');
-        exit(); // Add exit to stop further execution
+
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, "i", $c_id);
+        mysqli_stmt_execute($stmt);
+
+        // Check if the deletion was successful
+        if (mysqli_stmt_affected_rows($stmt) > 0) {
+            $_SESSION['message'] = 'Delete course is successful';
+        } else {
+            $_SESSION['message'] = 'Failed to delete course';
+        }
+
+        mysqli_stmt_close($stmt);
+        
+        // Redirect back to view_course.php after deletion
+        header('location: view_course.php');
+        exit();
     } else {
-        echo "Error updating Course: " . mysqli_error($data);
+        $_SESSION['message'] = 'Error deleting course';
     }
 }
 
-mysqli_close($data); // Close the database connection
+// Fetch all courses from the database
+$sql = "SELECT * FROM courses";
+$result = mysqli_query($data, $sql);
 ?>
 
 <!DOCTYPE html>
@@ -59,48 +54,50 @@ mysqli_close($data); // Close the database connection
 <head>
     <meta charset="utf-8">
     <title>Admin Dashboard</title>
-
-    <?php
-    include 'admin_css.php';
-    ?>
+    <?php include 'admin_css.php'; ?>
     <style type="text/css">
-        label {
-            display: inline-block;
-            width: 150px;
-            text-align: right;
-            padding-top: 10px;
-            padding-bottom: 10px;
+        .table_th {
+            padding: 20px;
+            font-size: 20px;
         }
-
-        .form_deg {
+        .table_td {
+            padding: 20px;
             background-color: skyblue;
-            width: 600px;
-            padding-top: 70px;
-            padding-bottom: 70px;
         }
     </style>
 </head>
 <body>
-<?php
-include 'admin_sidebar.php';
-?>
+<?php include 'admin_sidebar.php'; ?>
 <div class="content">
     <center>
-        <h1>Update Course Data</h1><br><br>
-        <form class="form_deg" action="#" method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="id" value="<?php echo $info['id']; ?>">
-            <div>
-                <label>Course Name</label>
-                <input type="text" name="name" value="<?php echo $info['name']; ?>">
-            </div>
-            <div>
-                <label>About Course</label>
-                <textarea name="description" rows="4"><?php echo $info['description']; ?></textarea>
-            </div>
-            <div>
-                <input class="btn btn-success" type="submit" name="update_Course">
-            </div>
-        </form>
+        <h1>View All Course Data</h1>
+        <table border="1px">
+            <tr>
+                <th class="table_th">Course Name</th>
+                <th class="table_th">Description</th>
+                <th class="table_th">Course id</th>
+                <th class="table_th">Delete</th>
+                <th class="table_th">Update</th>
+            </tr>
+            <?php
+            while ($info = $result->fetch_assoc()) {
+                ?>
+                <tr>
+                    <td class="table_td"><?php echo $info['name'] ?></td>
+                    <td class="table_td"><?php echo $info['description'] ?></td>
+                    <td class="table_td"><?php echo $info['courseid'] ?></td>
+                    <td class="table_td">
+                        <a onClick="return confirm('Are you sure to delete?');" class="btn btn-danger" 
+                        href="delete_course.php?Course_id=<?php echo $info['id'] ?>">Delete</a>
+                    </td>
+                    <td class="table_td">
+                        <a href="update_course.php?Course_id=<?php echo $info['id'] ?>" class="btn btn-primary">Update</a>
+                    </td>
+                </tr>
+                <?php
+            }
+            ?>
+        </table>
     </center>
 </div>
 </body>
